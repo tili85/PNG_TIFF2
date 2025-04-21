@@ -1,0 +1,396 @@
+#from pyproj import _datadir, datadir
+from pysheds.grid import Grid
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import colors
+import seaborn as sns
+import rasterio
+from pyproj import _datadir, datadir
+from tkinter import*
+from tkinter import ttk
+from tkinter import PhotoImage
+from PIL import ImageTk,Image
+#from shapely.geometry import Polygon
+#from sympy import Polygon
+ventana = Tk()
+ventana.geometry ("850x800+0+0")
+my_canvas= Canvas(ventana, width = 3900, height=1000)
+my_canvas.pack(fill ="both", expand= True)
+INICIOS=PhotoImage(file='INICIO.png', master=ventana)
+INICIOS2= my_canvas.create_image(380,500, image= INICIOS)
+CUENCA_GRANDE= Label(ventana, text="CUENCA DONDE SE UBICA LA PARCELA")
+CUENCA_GRANDE.place(x= 30,y=620)
+PARCELA= Label(ventana, text="CUENCA QUE DRENA A LA PARCELA")
+PARCELA.place(x= 280, y=620)
+DRENAJE= Label(ventana, text="DRENAJE HACIA LA PARCELA")
+DRENAJE.place(x= 530, y=620)               
+INICIO=Label(ventana, text='SISTEMA DE INFORMACION GEOGRÁFICA PARA CUENCAS')
+INICIO.place(x=250, y=40)
+
+def obtener():
+    from pysheds.grid import Grid
+##    grid = Grid.from_raster('F:\DEM_DGO_TIFF\AGUSTIN_MELGAR.tif')
+##    dem = grid.read_raster('F:\DEM_DGO_TIFF\AGUSTIN_MELGAR.tif')
+    x=entradaLAT.get()
+    y=entradaLON.get()
+    fig,ax=plt.subplots(figsize=(8,6))
+    fig.patch.set_alpha(0)
+
+    plt.imshow(dem, extent=grid.extent, cmap='terrain', zorder=1)
+    plt.colorbar(label="Elevation (m)")
+    plt.grid(zorder=0)
+    print("HOLA")
+    plt.tight_layout()
+    plt.show()
+
+    pit_filled_dem =grid.fill_pits(dem)
+    flooded_dem=grid.fill_depressions(pit_filled_dem)
+    inflated_dem=grid.resolve_flats(flooded_dem)
+
+    dirmap=(64,128,1,2,4,8,16,32)
+    fdir=grid.flowdir(inflated_dem,dirmap=dirmap)
+    fig,ax=plt.subplots(figsize=(8,6))
+    fig.patch.set_alpha(0)
+
+    plt.imshow(dem, extent=grid.extent, cmap='terrain', zorder=1)
+    plt.colorbar(label="Elevation (m)")
+    plt.grid(zorder=0)
+    print("HOLA")
+    plt.tight_layout()
+    plt.show()
+
+    pit_filled_dem =grid.fill_pits(dem)
+    flooded_dem=grid.fill_depressions(pit_filled_dem)
+    inflated_dem=grid.resolve_flats(flooded_dem)
+
+    dirmap=(64,128,1,2,4,8,16,32)
+    fdir=grid.flowdir(inflated_dem,dirmap=dirmap)
+
+    acc=grid.accumulation(fdir,dirmap=dirmap)
+    x,y=entradaLAT.get(), entradaLON.get()
+    #x,y=-105.2, 25.4
+    if clickr.get()=='ARROYO_INDIA':
+        num=70000
+    elif clickr.get()=='ARROYO_CADENA':
+        num = 10000
+    elif clickr.get()=='AGUSTIN_MELGAR':
+        num = 100000
+    elif clickr.get()=='CAMACHO_GRUÑIDORA':
+        num = 150000
+    elif clickr.get()=='CANAL_SANTA_ROSA':
+        num = 150000
+    elif clickr.get()=='LAGUNA_DEL_REY':
+        num = 100000
+    elif clickr.get()=='LAGUNA_DE_SANTIAGUILLO':
+        num = 100000
+    elif clickr.get()=='LAGUNA_VIESCA':
+        num = 75000
+    elif clickr.get()=='LA_TAMPONA':
+        num = 70000
+    elif clickr.get()=='LOS_ANGELES':
+        num = 40000
+    elif clickr.get()=='NAZARENO':
+        num = 60000
+    elif clickr.get()=='PRESA_FRANCISCO_ZARCO':
+        num = 60000
+    elif clickr.get()=='PRESA_LA_FLOR':
+        num = 40000
+    elif clickr.get()=='PRESA_LAZARO_CARDENAS':
+        num = 100000
+    elif clickr.get()=='RIO_ACAPONETA':
+        num = 50000
+
+        
+    x_snap, y_snap=grid.snap_to_mask(acc > num,(x,y))
+    catch=grid.catchment(x=x_snap, y=y_snap, fdir=fdir, dirmap=dirmap,
+                         xytype='coordinate')
+
+    grid.clip_to(catch)
+    clipped_catch=grid.view(catch)
+
+    fig,ax=plt.subplots(figsize=(8,6))
+    fig.patch.set_alpha(0)
+    plt.grid('on',zorder=0)
+
+    im=ax.imshow(np.where(clipped_catch, clipped_catch, np.nan), extent=grid.extent,
+                 zorder=1, cmap='viridis')
+    _=plt.title("CUENCA QUE DRENA A LA PARCELA")
+
+    #output_file_path='C:\IA_TF\VARIOS'+str('\\')+str(clipped_catch)+str('.tif')
+    plt.savefig('C:\IA_TF\IMAGENES\clipped_catch.png')
+    
+
+##    clipped_catch.GetMetadata()
+##    metadata = clipped_catch.GetMetadata()
+##    print(metadata)
+
+##    pgon = Polygon((x, y))
+##    SUPERFICIE=(pgon.area)
+##    print(SUPERFICIE)
+##    area=0.5*np.abs(np.dot(x_snap,np.roll(y_snap,1))-np.dot(y_snap,np.roll(x_snap,1)))
+##    print(area)
+
+    
+    plt.show()
+
+    branches =grid.extract_river_network(fdir, acc>3000, dirmap=dirmap)
+    sns.set_palette('husl')
+    fig,ax=plt.subplots(figsize=(8.5,6.5))
+    plt.xlim(grid.bbox[0],grid.bbox[2])
+    plt.ylim(grid.bbox[1],grid.bbox[3])
+    ax.set_aspect('equal')
+
+    for branch in branches['features']:
+        line=np.asarray(branch['geometry']['coordinates'])
+        plt.plot(line[:,0],line[:,1])
+    _= plt.title("RED QUE DRENA A LA PARCELA")
+    plt.savefig('C:\IA_TF\IMAGENES\line.png')
+    
+    plt.show()
+
+    
+
+    dist=grid.distance_to_outlet(x=x_snap, y=y_snap, fdir=fdir, dirmap=dirmap,
+                                 xytype='coordinate')
+    fig,ax=plt.subplots(figsize=(8,6))
+    fig.patch.set_alpha(0)
+    plt.grid('on',zorder=0)
+    im=ax.imshow(dist,extent=grid.extent, zorder=2,
+                 cmap='cubehelix_r')
+    plt.colorbar(im,ax=ax, label="Distancia a la salida (celdas)")
+    plt.savefig('C:\IA_TF\IMAGENES\dist.png')
+    
+    plt.show()
+
+    
+def ELECCION(event):
+    global grid
+    global dem
+    global entradaLAT
+    global entradaLON
+    from pysheds.grid import Grid
+
+    ANUNCIA = Label(ventana, text="DEL DEM QUE SE OBTENDRÁ,\n\
+    ELIGE LAS COORDENADAS DONDE SE UBICA LA PARCELA\n\
+    YA QUE DESDE ESE PUNTO SE DELINEARÁ LA CUENCA QUE DRENA AL\n\
+    PUNTO DE INTERÉS Y SE MOSTRARÁ LA RED DE DRENAJE\n\
+    RECUEDE QUE LA LONGITUD ES NEGATIVA.\n\
+    SOLO CIERRE EL MAPA PARA CTIVAR",font=('Helvetica bold', 8),fg="blue")
+    ANUNCIA.place(x= 400, y=70)
+
+    DATOS=Label(ventana,text="LAS IMAGENES GENERADAS SERAN GUARDADAS\n\
+    EN LA CARPETA TITULADA: IMAGENES",font=('Helvetica bold', 8),fg="blue")
+    DATOS.place(x=570, y= 240)
+    
+    entradaLAT=IntVar()
+    txtLAT =Entry(ventana,textvariable=entradaLAT, width=10)
+    txtLAT.place (x=500, y=215)
+
+    entradaLAT_lbl=Label(ventana, text="LATITUD")
+    entradaLAT_lbl.place(x= 400, y=215)
+
+    entradaLON=IntVar()
+    txtLON =Entry(ventana,textvariable=entradaLON, width=10)
+    txtLON.place (x=500, y=265)
+
+    entradaLON_lbl=Label(ventana, text="LONGITUD")
+    entradaLON_lbl.place(x= 400, y=265)
+    
+    input_file_path='C:\IA_TF\PNG'+str('\\')+str(clickr.get())+str('.PNG')
+    
+    dataset=rasterio.open(input_file_path,'r')
+    bands=[1,2,3]
+    data=dataset.read(bands)
+    if clickr.get()=='AGUSTIN_MELGAR':
+        transform=rasterio.transform.from_bounds(-106.2677, 23.9305, -102.2895, 26.1073, data.shape[1], data.shape[2])
+    elif clickr.get()=='ARROYO_CADENA':
+        transform=rasterio.transform.from_bounds(-104.4917, 25.6115, -103.8226, 26.4570, data.shape[1], data.shape[2])
+    elif clickr.get()=='ARROYO_INDIA':
+        transform=rasterio.transform.from_bounds(-105.4524, 25.5797, -103.3270, 26.7427, data.shape[1], data.shape[2])
+    elif clickr.get()=='AGUSTIN_MELGAR':
+        transform=rasterio.transform.from_bounds(-105.0265, 24.1165, -103.6262, 25.7920, data.shape[1], data.shape[2])
+    elif clickr.get()=='CAMACHO_GRUÑIDORA':
+        transform=rasterio.transform.from_bounds(-102.8048, 24.4523, -102.5051, 24.9014, data.shape[1], data.shape[2])
+    elif clickr.get()=='CANAL_SANTA_ROSA':
+        transform=rasterio.transform.from_bounds(-104.1687, 25.4428, -103.2790, 26.5876, data.shape[1], data.shape[2])
+    elif clickr.get()=='LAGUNA_DEL_REY':
+        transform=rasterio.transform.from_bounds(-104.173, 26.111, -103.284, 26.755, data.shape[1], data.shape[2])
+    elif clickr.get()=='LAGUNA_DE_SANTIAGUILLO':
+        transform=rasterio.transform.from_bounds(-105.335, 24.597, -104.658, 25.194, data.shape[1], data.shape[2])
+    elif clickr.get()=='LAGUNA_VIESCA':
+        transform=rasterio.transform.from_bounds(-102.743, 24.853, -102.535, 25.075, data.shape[1], data.shape[2])
+    elif clickr.get()=='LA_TAMPONA':
+        transform=rasterio.transform.from_bounds(-104.518, 24.005, -103.853, 24.618, data.shape[1], data.shape[2])
+    elif clickr.get()=='LOS_ANGELES':
+        transform=rasterio.transform.from_bounds(-103.919, 25.083, -103.498, 25.745, data.shape[1], data.shape[2])
+    elif clickr.get()=='NAZARENO':
+        transform=rasterio.transform.from_bounds(-103.706, 24.970, -103.294, 25.456, data.shape[1], data.shape[2])
+    elif clickr.get()=='PRESA_FRANCISCO_ZARCO':
+        transform=rasterio.transform.from_bounds(-104.108, 24.554, -103.510, 25.589, data.shape[1], data.shape[2])
+    elif clickr.get()=='PRESA_LA_FLOR':
+        transform=rasterio.transform.from_bounds(-103.811, 24.099, -102.632, 25.081, data.shape[1], data.shape[2])
+    elif clickr.get()=='PRESA_LAZARO_CARDENAS':
+        transform=rasterio.transform.from_bounds(-105.769, 25.033, -104.840, 26.205, data.shape[1], data.shape[2])
+    elif clickr.get()=='RIO_ACAPONETA':
+        transform=rasterio.transform.from_bounds(-105.433, 22.994, -104.845, 23.889, data.shape[1], data.shape[2])
+    
+    crs={'init':'epsg:4326'}
+    output_file_path='C:\IA_TF\TIFF'+str('\\')+str(clickr.get())+str('.tif')#C:\IA_TF\TIFF
+    print(output_file_path)
+
+    _,width, height=data.shape
+
+    with rasterio.open(output_file_path, 'w', driver='GTiff',
+               width=width, height=height,
+               count =3, dtype=data.dtype, nodata=0,
+               transform=transform, crs=crs)as dst:
+        dst.write(data,indexes=bands)
+
+    grid = Grid.from_raster('C:\IA_TF\TIFF' +str('\\')+str(clickr.get())+str('.tif'))
+    print(grid)
+    dem = grid.read_raster('C:\IA_TF\TIFF' +str('\\')+str(clickr.get())+str('.tif'))
+
+    
+    
+
+    
+        
+
+##    elif clickr.get()=="ARROYO_CADENA":
+##        grid = Grid.from_raster('F:\DEM_DGO_TIFF\ARROYO_CADENA.tif')
+##        dem = grid.read_raster('F:\DEM_DGO_TIFF\ARROYO_CADENA.tif')
+##
+##    elif clickr.get()=="CAMACHO_GRUÑIDORA":
+##        grid = Grid.from_raster('F:\DEM_DGO_TIFF\CAMACHO_GRUÑIDORA.tif')
+##        dem = grid.read_raster('F:\DEM_DGO_TIFF\CAMACHO_GRUÑIDORA.tif')
+##
+##    elif clickr.get()=="SANTA_ROSA":
+##        input_file_path='C:\IA_TF\ARROYO_CADENA.png'
+##        dataset=rasterio.open(input_file_path,'r')
+##        bands=[1,2,3]
+##        data=dataset.read(bands)
+##
+##        transform=rasterio.transform.from_bounds(-104.96, 25.90, -103.34, 26.47, data.shape[1], data.shape[2])
+##        crs={'init':'epsg:4326'}
+##        output_file_path='F:\DEM_DGO_TIFF\ARROYO_CADENA.tiff'
+##
+##        _,width, height=data.shape
+##
+##        with rasterio.open(output_file_path, 'w', driver='GTiff',
+##                   width=width, height=height,
+##                   count =3, dtype=data.dtype, nodata=0,
+##                   transform=transform, crs=crs)as dst:
+##            dst.write(data,indexes=bands)
+##        grid = Grid.from_raster('F:\DEM_DGO_TIFF\ARROYO_CADENA.tiff')
+##        dem = grid.read_raster('F:\DEM_DGO_TIFF\ARROYO_CADENA.tiff')
+####        import  aspose.cells 
+####        from aspose.cells import Workbook
+####        workbook = Workbook('C:\IA_TF\SANTA_ROSA.png')
+####        HERE=workbook.save('C:\IA_TF\SANTA_ROSA.tiff')
+####        grid = Grid.from_raster('C:\IA_TF\SANTA_ROSA.tiff')
+####        dem = grid.read_raster('C:\IA_TF\SANTA_ROSA.tiff')
+    
+
+    calcula=Button(ventana, text="OBTENER\n DEM", command = obtener,bd=7)
+    calcula.place(x=300, y=170)
+        
+def introduce_cuenca():
+    global ventana
+    global clickr
+    from pysheds.grid import Grid
+    
+    option =[
+      "ELIGE CUENCA",
+      "ARROYO_CADENA",
+      "AGUSTIN_MELGAR",
+      "ARROYO_INDIA",
+      "CAMACHO_GRUÑIDORA",
+      "CANAL_SANTA_ROSA",
+      "LAGUNA_DEL_REY",
+      "LAGUNA_DE_SANTIAGUILLO",
+      "LAGUNA_VIESCA",
+      "LA_TAMPONA",
+      "LOS_ANGELES",
+      "NAZARENO",
+      "PRESA_FRANCISCO_ZARCO",
+      "PRESA_LA_FLOR",
+      "PRESA_LAZARO_CARDENAS",
+      "RIO_ACAPONETA"
+          
+    ]
+    clickr =StringVar()
+    clickr.set(option[0])
+    drop2=OptionMenu(ventana, clickr, *option, command = ELECCION)
+    drop2.place(x=60, y=170)
+    
+    
+    
+    
+def by_cuenca():
+    ventana.destroy()
+    
+CUENCA = Button(ventana,text="CUENCA", command=introduce_cuenca)
+CUENCA.place(x= 50, y=100)
+
+SALIR =Button(ventana, text="SALIR", command=by_cuenca)
+SALIR.place(x=50, y=250)
+                
+ventana.mainloop()
+
+
+# Convert Raster to numpy array
+
+##fig=plt.figure(figsize=(8,6))
+##fig.patch.set_alpha(0)
+##plt.imshow(fdir,extent=grid.extent, cmap='viridis', zorder=2)
+##boundaries=([0]+sorted(list(dirmap)))
+##plt.colorbar(boundaries=boundaries,
+##             values=sorted(dirmap))
+##
+##plt.grid(zorder=-1)
+##plt.tight_layout()
+##plt.show()
+
+##acc=grid.accumulation(fdir,dirmap=dirmap)
+
+##fig,ax=plt.subplots(figsize=(8,6))
+##fig.patch.set_alpha(0)
+##plt.grid('on',zorder=0)
+##im =ax.imshow(acc,extent=grid.extent, zorder=2,
+##              cmap='cubehelix',
+##              norm=colors.LogNorm(1,acc.max()),
+##              interpolation='bilinear')
+##plt.colorbar(im,ax=ax, label="upstream cells")
+##plt.tight_layout()
+##plt.show()
+              
+##x,y=-105.2, 25.4#-104,24
+##x_snap, y_snap=grid.snap_to_mask(acc > 100000,(x,y))
+##catch=grid.catchment(x=x_snap, y=y_snap, fdir=fdir, dirmap=dirmap,
+##                     xytype='coordinate')
+##
+##grid.clip_to(catch)
+##clipped_catch=grid.view(catch)
+##
+##fig,ax=plt.subplots(figsize=(8,6))
+##fig.patch.set_alpha(0)
+##plt.grid('on',zorder=0)
+##
+##im=ax.imshow(np.where(clipped_catch, clipped_catch, np.nan), extent=grid.extent,
+##             zorder=1, cmap='viridis')
+##print('aqui')
+##plt.show()
+##
+##branches =grid.extract_river_network(fdir, acc>5000, dirmap=dirmap)
+##sns.set_palette('husl')
+##fig,ax=plt.subplots(figsize=(8.5,6.5))
+##plt.xlim(grid.bbox[0],grid.bbox[2])
+##plt.ylim(grid.bbox[1],grid.bbox[3])
+##ax.set_aspect('equal')
+##
+##for branch in branches['features']:
+##    line=np.asarray(branch['geometry']['coordinates'])
+##    plt.plot(line[:,0],line[:,1])
+##_= plt.title("RED QUE DRENA A LA PARCELA")
+##plt.show()
+
